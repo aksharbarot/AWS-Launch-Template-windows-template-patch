@@ -1,0 +1,139 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: no
+
+  tasks:
+
+    - name: Display the availble timestamp format in Ansible
+      debug:
+        var: ansible_date_time
+
+    - name: "Provison ec2 instance(s)"
+      ec2_instance:
+        state: present
+        name: PatchProcess-{{ ansible_date_time.iso8601_basic_short }}
+        region: "{{ r_name }}"
+        instance_type: t2.medium
+        network:
+         interfaces:
+          - id: "eni-0cb2e892c2bb14523"
+        tags:
+          Name: PatchProcess-{{ ansible_date_time.iso8601_basic_short }}
+          Application: "Ansible"
+          
+        launch_template:
+            id: "{{ l_name }}"
+      register: ininfo
+
+    - name: sleep for 60 seconds and continue with play
+      wait_for:
+        timeout: 60
+      delegate_to: localhost
+
+    - name: add converted template to temporary hosts
+      add_host:
+        name: "10.10.10.10"
+        groups: templates
+        ansible_user: "administrator"
+        ansible_password: 'PAASSWWOORRDD'
+        ansible_port: 5986
+        ansible_connection: winrm
+        ansible_winrm_server_cert_validation: ignore
+      delegate_to: localhost
+
+- name: install windows updates
+  hosts: templates
+  gather_facts: False
+  tasks:
+
+  - name: attempt to install updates
+    block:
+      - name: Search-only, return list of found updates (if any)
+        win_updates:
+          category_names:
+            - SecurityUpdates
+            - CriticalUpdates
+          state: searched
+        register: result
+
+      - name:
+        debug:
+          msg: "Found update count: {{ result.found_update_count }}"
+
+      - set_fact:
+          install: False
+        when: result.found_update_count == 0
+
+      - set_fact:
+          install: True
+        when: result.found_update_count > 0
+
+      - name: install all security, critical, and rollup updates
+        win_updates:
+          category_names:
+            - SecurityUpdates
+            - CriticalUpdates
+          reboot: yes
+          reboot_timeout: 3600
+        register: installed
+        when: install
+
+      - name: show installed updates
+        debug:
+          msg: "{{ installed.updates | to_nice_json }}"
+        when: install
+
+
+      - name: wait up to 2 hours for system to become reachable over WinRM
+        wait_for_connection:
+          timeout: 7200
+        register: time
+        when: install
+
+      - name: show reboot time
+        debug:
+          msg: "Reboot time was {{ time.elapsed }} seconds."
+        when: install
+
+    rescue:
+
+      - name: Error
+        debug:
+          msg: "I caught an error. Please report exception to system administrator."
+
+
+- name: install windows updates
+  hosts: localhost
+  gather_facts: True
+  tasks:
+
+  - ec2_ami:
+      profile: "{{ profile }}"
+      instance_id: "{{ ininfo.instances[0].instance_id }}"
+      wait: yes
+      name: Windows_Ocwen_Patch_LT-{{ ansible_date_time.iso8601_basic_short }}
+      tags:
+        Created from: "{{ ininfo.instances[0].instance_id }}"
+        Name: Windows_Ocwen_Patch_LT-{{ ansible_date_time.iso8601_basic_short }}
+        Launch Temp: "{{ l_name }}"
+    register: ami_info
+
+  - name: >
+        Create a new version of an existing ec2 launch template with a different instance type,
+        while leaving an older version as the default version
+    ec2_launch_template:
+       profile: "{{ profile }}"
+       id: "{{ l_name }}"
+       default_version: "{{ ver_name }}"
+       image_id: "{{ ami_info.image_id }}"
+       instance_type: t2.medium
+       tags:
+          Name: ""
+
+  - ec2_instance:
+      profile: "{{ profile }}"
+      state: stopped
+      instance_ids:
+        - "{{ ininfo.instances[0].instance_id }}"
