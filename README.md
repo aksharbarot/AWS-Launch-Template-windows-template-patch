@@ -10,4 +10,4 @@ AWS Launch Template - windows template patch
 5.	Stop/Terminate Created VM
 
 **Command:**
-```AWS_PROFILE=Profile ansible-playbook launch.yaml -i localhost, --extra-vars "l_name=LaunchTemplateID r_name=RegionName ver_name=LtVersion profile=svc_virtualizationAdm"```
+```AWS_PROFILE=Profile ansible-playbook awslt.yaml -i localhost, --extra-vars "l_name=LaunchTemplateID r_name=RegionName ver_name=LtVersion profile=Profile"```
