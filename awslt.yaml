@@ -18,9 +18,9 @@
         instance_type: t2.medium
         network:
          interfaces:
-          - id: "eni-0cb2e892c2bb14523"
+          - id: "eni-12345678"
         tags:
-          Name: PatchProcess-{{ ansible_date_time.iso8601_basic_short }}
+          Name: Patch-{{ ansible_date_time.iso8601_basic_short }}
           Application: "Ansible"
           
         launch_template:
@@ -113,10 +113,10 @@
       profile: "{{ profile }}"
       instance_id: "{{ ininfo.instances[0].instance_id }}"
       wait: yes
-      name: Windows_Ocwen_Patch_LT-{{ ansible_date_time.iso8601_basic_short }}
+      name: LT-{{ ansible_date_time.iso8601_basic_short }}
       tags:
         Created from: "{{ ininfo.instances[0].instance_id }}"
-        Name: Windows_Ocwen_Patch_LT-{{ ansible_date_time.iso8601_basic_short }}
+        Name: LT-{{ ansible_date_time.iso8601_basic_short }}
         Launch Temp: "{{ l_name }}"
     register: ami_info
 
